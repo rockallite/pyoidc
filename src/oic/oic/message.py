@@ -298,10 +298,13 @@ class AccessTokenResponse(message.AccessTokenResponse):
                     args[arg] = kwargs[arg]
                 except KeyError:
                     pass
-            idt = IdToken().from_jwt(str(self["id_token"]), **args)
+            _idt = str(self["id_token"])
+            idt = IdToken().from_jwt(_idt, **args)
             if not idt.verify(**kwargs):
                 return False
 
+            # save the original id_token for end_session_endpoint
+            self["_id_token"] = _idt
             # replace the JWT with the IdToken instance
             self["id_token"] = idt
 
