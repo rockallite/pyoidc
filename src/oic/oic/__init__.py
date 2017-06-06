@@ -608,8 +608,8 @@ class Client(oauth2.Client):
         # if "redirect_url" not in request_args:
         #            request_args["redirect_url"] = self.redirect_url
 
-        return self._id_token_based(request, request_args, extra_args,
-                                    **kwargs)
+        # end-session request doesn't need 'id_token' request argument
+        return self.construct_request(request, request_args, extra_args)
 
     # ------------------------------------------------------------------------
     def authorization_request_info(self, request_args=None, extra_args=None,
