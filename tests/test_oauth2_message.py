@@ -30,8 +30,34 @@ from oic.oauth2.message import TooManyValues
 from oic.oauth2.message import json_deserializer
 from oic.oauth2.message import json_serializer
 from oic.oauth2.message import sp_sep_list_deserializer
+from oic.utils.keyio import build_keyjar
 
 __author__ = 'rohe0002'
+
+keys = [
+    {"type": "RSA", "use": ["sig"]},
+    {"type": "RSA", "use": ["enc"]},
+    {"type": "EC", "crv": "P-256", "use": ["sig"]},
+    {"type": "EC", "crv": "P-256", "use": ["enc"]},
+]
+
+keym = [
+    {"type": "RSA", "use": ["sig"]},
+    {"type": "RSA", "use": ["sig"]},
+    {"type": "RSA", "use": ["sig"]},
+]
+
+KEYJAR = build_keyjar(keys)[1]
+IKEYJAR = build_keyjar(keys)[1]
+IKEYJAR.issuer_keys['issuer'] = IKEYJAR.issuer_keys['']
+del IKEYJAR.issuer_keys['']
+
+KEYJARS = {}
+for iss in ['A', 'B', 'C']:
+    _kj = build_keyjar(keym)[1]
+    _kj.issuer_keys[iss] = _kj.issuer_keys['']
+    del _kj.issuer_keys['']
+    KEYJARS[iss] = _kj
 
 
 def url_compare(url1, url2):
@@ -108,19 +134,22 @@ class TestMessage(object):
                     'opt_str_list', 'opt_int'])
 
     def test_from_json(self):
-        jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], "opt_int": [9]}'
+        jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], ' \
+              '"opt_int": [9]}'
         item = DummyMessage().deserialize(jso, "json")
 
         assert _eq(item.keys(), ['req_str', 'req_str_list', 'opt_int'])
         assert item["opt_int"] == 9
 
     def test_single_optional(self):
-        jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], "opt_int": [9, 10]}'
+        jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], ' \
+              '"opt_int": [9, 10]}'
         with pytest.raises(TooManyValues):
             DummyMessage().deserialize(jso, "json")
 
     def test_extra_param(self):
-        jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], "extra": "out"}'
+        jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], "extra": ' \
+              '"out"}'
         item = DummyMessage().deserialize(jso, "json")
 
         assert _eq(item.keys(), ['req_str', 'req_str_list', 'extra'])
@@ -258,7 +287,8 @@ class TestAuthorizationRequest(object):
             AuthorizationRequest(**args)
 
     def test_urlencoded_deserialize_state(self):
-        txt = "scope=foo+bar&state=-11&redirect_uri=http%3A%2F%2Ffoobar.example.com%2Foaclient&response_type=code&" \
+        txt = "scope=foo+bar&state=-11&redirect_uri=http%3A%2F%2Ffoobar" \
+              ".example.com%2Foaclient&response_type=code&" \
               "client_id=foobar"
 
         ar = AuthorizationRequest().deserialize(txt, "urlencoded")
@@ -266,7 +296,8 @@ class TestAuthorizationRequest(object):
 
     def test_urlencoded_deserialize_response_type(self):
         txt = "scope=openid&state=id-6a3fc96caa7fd5cb1c7d00ed66937134&" \
-              "redirect_uri=http%3A%2F%2Flocalhost%3A8087authz&response_type=code&client_id=a1b2c3"
+              "redirect_uri=http%3A%2F%2Flocalhost%3A8087authz&response_type" \
+              "=code&client_id=a1b2c3"
 
         ar = AuthorizationRequest().deserialize(txt, "urlencoded")
         assert ar["scope"] == ["openid"]
@@ -322,7 +353,8 @@ class TestAuthorizationRequest(object):
         assert ar == ar2
 
     def test_verify(self):
-        query = 'redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fauthz&response_type=code&client_id=0123456789'
+        query = 'redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fauthz' \
+                '&response_type=code&client_id=0123456789'
         ar = AuthorizationRequest().deserialize(query, "urlencoded")
         assert ar.verify()
 
@@ -378,8 +410,7 @@ class TestAuthorizationRequest(object):
                                   scope=["openid", "foxtrot"])
         ue = ar.to_urlencoded()
         ue_splits = ue.split('&')
-        expected_ue_splits = "scope=openid+foxtrot&response_type=code+token&client_id=foobar".split(
-            '&')
+        expected_ue_splits = "scope=openid+foxtrot&response_type=code+token&client_id=foobar".split('&')
         assert _eq(ue_splits, expected_ue_splits)
 
         are = AuthorizationRequest().deserialize(ue, "urlencoded")
@@ -430,7 +461,8 @@ class TestAuthorizationErrorResponse(object):
 
     def test_extra_params(self):
         aer = AuthorizationErrorResponse(error="access_denied",
-                                         error_description="brewers has a four game series",
+                                         error_description="brewers has a "
+                                                           "four game series",
                                          foo="bar")
         assert aer["error"] == "access_denied"
         assert aer["error_description"] == "brewers has a four game series"
@@ -446,7 +478,8 @@ class TestTokenErrorResponse(object):
 
     def test_extra_params(self):
         ter = TokenErrorResponse(error="access_denied",
-                                 error_description="brewers has a four game series",
+                                 error_description="brewers has a four game "
+                                                   "series",
                                  foo="bar")
 
         assert ter["error"] == "access_denied"
@@ -595,3 +628,92 @@ class TestErrorResponse(object):
 
         with pytest.raises(MissingRequiredAttribute):
             err.to_urlencoded()
+
+
+@pytest.mark.parametrize("keytype,alg", [
+    ('RSA', 'RS256'),
+    ('EC', 'ES256')
+])
+def test_to_jwt(keytype, alg):
+    msg = Message(a='foo', b='bar', c='tjoho')
+    _jwt = msg.to_jwt(KEYJAR.get_signing_key(keytype, ''), alg)
+    msg1 = Message().from_jwt(_jwt, KEYJAR.get_signing_key(keytype, ''))
+    assert msg1 == msg
+
+
+@pytest.mark.parametrize("keytype,alg,enc", [
+    ('RSA', 'RSA1_5', 'A128CBC-HS256'),
+    ('EC', 'ECDH-ES', 'A128GCM'),
+])
+def test_to_jwe(keytype, alg, enc):
+    msg = Message(a='foo', b='bar', c='tjoho')
+    _jwe = msg.to_jwe(KEYJAR.get_encrypt_key(keytype, ''), alg=alg, enc=enc)
+    msg1 = Message().from_jwe(_jwe, KEYJAR.get_encrypt_key(keytype, ''))
+    assert msg1 == msg
+
+
+def test_get_verify_keys_no_kid_multiple_keys():
+    msg = Message()
+    header = {'alg': 'RS256'}
+    keys = []
+    msg.get_verify_keys(KEYJARS['A'], keys, {'iss': 'A'}, header, {})
+    assert keys == []
+
+
+def test_get_verify_keys_no_kid_single_key():
+    msg = Message()
+    header = {'alg': 'RS256'}
+    keys = []
+    msg.get_verify_keys(IKEYJAR, keys, {'iss': 'issuer'}, header, {})
+    assert len(keys) == 1
+
+
+def test_get_verify_keys_no_kid_multiple_keys_no_kid_issuer():
+    msg = Message()
+    header = {'alg': 'RS256'}
+    keys = []
+
+    a_kids = [k.kid for k in
+              KEYJARS['A'].get_verify_key(owner='A', key_type='RSA')]
+    no_kid_issuer = {'A': a_kids}
+
+    msg.get_verify_keys(KEYJARS['A'], keys, {'iss': 'A'}, header, {},
+                        no_kid_issuer=no_kid_issuer)
+    assert len(keys) == 3
+    assert set([k.kid for k in keys]) == set(a_kids)
+
+
+def test_get_verify_keys_no_kid_multiple_keys_no_kid_issuer_lim():
+    msg = Message()
+    header = {'alg': 'RS256'}
+    keys = []
+
+    a_kids = [k.kid for k in
+              KEYJARS['A'].get_verify_key(owner='A', key_type='RSA')]
+    # get rid of one kid
+    a_kids = a_kids[:-1]
+    no_kid_issuer = {'A': a_kids}
+
+    msg.get_verify_keys(KEYJARS['A'], keys, {'iss': 'A'}, header, {},
+                        no_kid_issuer=no_kid_issuer)
+    assert len(keys) == 2
+    assert set([k.kid for k in keys]) == set(a_kids)
+
+
+def test_get_verify_keys_matching_kid():
+    msg = Message()
+    a_kids = [k.kid for k in
+              KEYJARS['A'].get_verify_key(owner='A', key_type='RSA')]
+    header = {'alg': 'RS256', 'kid': a_kids[0]}
+    keys = []
+    msg.get_verify_keys(KEYJARS['A'], keys, {'iss': 'A'}, header, {})
+    assert len(keys) == 1
+    assert keys[0].kid == a_kids[0]
+
+
+def test_get_verify_keys_no_matching_kid():
+    msg = Message()
+    header = {'alg': 'RS256', 'kid': 'aaaaaaa'}
+    keys = []
+    msg.get_verify_keys(KEYJARS['A'], keys, {'iss': 'A'}, header, {})
+    assert keys == []
