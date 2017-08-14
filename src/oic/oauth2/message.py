@@ -431,6 +431,12 @@ class Message(MutableMapping):
         else:
             if val is None:
                 self._dict[skey] = None
+            elif isinstance(val, bool):
+                if vtyp is bool:
+                    self._dict[skey] = val
+                else:
+                    raise ValueError(
+                        '"{}", wrong type of value for "{}"'.format(val, skey))
             elif isinstance(val, vtyp):  # Not necessary to do anything
                 self._dict[skey] = val
             else:
@@ -439,6 +445,15 @@ class Message(MutableMapping):
                         val = _deser(val, sformat="dict")
                     except Exception as exc:
                         raise DecodeError(ERRTXT % (key, exc))
+                elif vtyp is int:
+                    try:
+                        self._dict[skey] = int(val)
+                    except (ValueError, TypeError):
+                        raise ValueError(
+                            '"{}", wrong type of value for "{}"'.format(val,
+                                                                        skey))
+                    else:
+                        return
 
                 if isinstance(val, six.string_types):
                     self._dict[skey] = val
@@ -476,11 +491,12 @@ class Message(MutableMapping):
     def _add_key(self, keyjar, issuer, key, key_type='', kid='',
                  no_kid_issuer=None):
 
-        try:
-            logger.debug('Key set summary for {}: {}'.format(
-                issuer, key_summary(keyjar, issuer)))
-        except KeyError:
+        if issuer not in keyjar:
             logger.error('Issuer "{}" not in keyjar'.format(issuer))
+            return
+
+        logger.debug('Key set summary for {}: {}'.format(
+            issuer, key_summary(keyjar, issuer)))
 
         if kid:
             _key = keyjar.get_key_by_kid(kid, issuer)

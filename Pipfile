@@ -10,11 +10,12 @@ mock = "*"
 pylama = "*"
 pytest = "*"
 pytest-cov = "*"
-responses = "*"
+responses = "==0.6.0"
 sphinx-autobuild = "*"
 testfixtures = "*"
 tox = "*"
 "-e ." = "*"
+freezegun = "*"
 
 [packages]
 cffi = "*"
