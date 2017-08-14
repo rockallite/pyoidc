@@ -27,6 +27,7 @@ from oic import rndstr
 from oic.exception import AuthzError
 from oic.exception import AuthnToOld
 from oic.exception import ParameterError
+from oic.exception import SubMismatch
 
 from oic.oauth2 import HTTP_ARGS
 from oic.oauth2 import authz_error
@@ -109,6 +110,7 @@ REQUEST2ENDPOINT = {
     "ResourceRequest": "resource_endpoint",
     'TokenIntrospectionRequest': 'introspection_endpoint',
     'TokenRevocationRequest': 'revocation_endpoint',
+    "ROPCAccessTokenRequest": "token_endpoint",
 }
 
 # -----------------------------------------------------------------------------
@@ -608,8 +610,8 @@ class Client(oauth2.Client):
         # if "redirect_url" not in request_args:
         #            request_args["redirect_url"] = self.redirect_url
 
-        return self._id_token_based(request, request_args, extra_args,
-                                    **kwargs)
+        # end-session request doesn't need 'id_token' request argument
+        return self.construct_request(request, request_args, extra_args)
 
     # ------------------------------------------------------------------------
     def authorization_request_info(self, request_args=None, extra_args=None,
@@ -897,7 +899,12 @@ class Client(oauth2.Client):
         if 'error' in res:  # Error response
             res = UserInfoErrorResponse(**res.to_dict())
 
-        # TODO verify issuer:sub against what's returned in the ID Token
+        # Verify userinfo sub claim against what's returned in the ID Token
+        idt = self.grant[state].get_id_token()
+        if idt:
+            if idt['sub'] != res['sub']:
+                raise SubMismatch(
+                    'Sub identifier not the same in userinfo and Id Token')
 
         self.store_response(res, _txt)
 
@@ -922,7 +929,7 @@ class Client(oauth2.Client):
 
         try:
             resp = self.http_request(path, method, data=body, **h_args)
-        except oauth2.MissingRequiredAttribute:
+        except MissingRequiredAttribute:
             raise
 
         if resp.status_code == 200:

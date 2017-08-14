@@ -26,7 +26,6 @@ from oic.oauth2.message import MissingRequiredAttribute
 from oic.oauth2.message import RefreshAccessTokenRequest
 from oic.oauth2.message import ROPCAccessTokenRequest
 from oic.oauth2.message import TokenErrorResponse
-from oic.oauth2.message import TooManyValues
 from oic.oauth2.message import json_deserializer
 from oic.oauth2.message import json_serializer
 from oic.oauth2.message import sp_sep_list_deserializer
@@ -135,7 +134,7 @@ class TestMessage(object):
 
     def test_from_json(self):
         jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], ' \
-              '"opt_int": [9]}'
+              '"opt_int": 9}'
         item = DummyMessage().deserialize(jso, "json")
 
         assert _eq(item.keys(), ['req_str', 'req_str_list', 'opt_int'])
@@ -144,7 +143,7 @@ class TestMessage(object):
     def test_single_optional(self):
         jso = '{"req_str": "Fair", "req_str_list": ["spike", "lee"], ' \
               '"opt_int": [9, 10]}'
-        with pytest.raises(TooManyValues):
+        with pytest.raises(ValueError):
             DummyMessage().deserialize(jso, "json")
 
     def test_extra_param(self):

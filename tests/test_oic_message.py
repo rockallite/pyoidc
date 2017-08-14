@@ -17,6 +17,7 @@ from oic.oic.message import AddressClaim
 from oic.oic.message import AuthorizationRequest
 from oic.oic.message import Claims
 from oic.oic.message import IdToken
+from oic.oic.message import OpenIDSchema
 from oic.oic.message import ProviderConfigurationResponse
 from oic.oic.message import RegistrationRequest
 from oic.oic.message import RegistrationResponse
@@ -38,6 +39,23 @@ def query_string_compare(query_str1, query_str2):
 
 def _eq(l1, l2):
     return set(l1) == set(l2)
+
+
+def test_openidschema():
+    inp = '{"middle_name":null, "updated_at":"20170328081544", "sub":"abc"}'
+    ois = OpenIDSchema().from_json(inp)
+    assert ois.verify() is False
+
+
+@pytest.mark.parametrize("json_param", [
+    '{"middle_name":"fo", "updated_at":"20170328081544Z", "sub":"abc"}',
+    '{"middle_name":true, "updated_at":"20170328081544", "sub":"abc"}',
+    '{"middle_name":"fo", "updated_at":false, "sub":"abc"}',
+    '{"middle_name":"fo", "updated_at":"20170328081544Z", "sub":true}'
+])
+def test_openidschema_from_json(json_param):
+    with pytest.raises(ValueError):
+        OpenIDSchema().from_json(json_param)
 
 
 def test_claims_deser():
